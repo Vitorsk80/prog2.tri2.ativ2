@@ -1,56 +1,68 @@
 import { Database } from "bun:sqlite";
 
-const db = new Database("database.sqlite")
+const db = new Database("database.sqlite");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL
   )
-`)
+`);
 
-const querySelectItems = db.prepare("SELECT * FROM items")
-const queryInsertItem = db.prepare("INSERT INTO items (title) VALUES (?)")
-const queryDeleteItem = db.prepare("DELETE FROM items WHERE id = (?);")
-const queryUpdateItem = db.prepare("UPDATE items SET title = (?) WHERE id = (?)")
+const querySelectItems = db.prepare("SELECT * FROM items");
+const queryInsertItem = db.prepare("INSERT INTO items (title) VALUES (?)");
+const queryDeleteItem = db.prepare("DELETE FROM items WHERE id = ?");
+const queryUpdateItem = db.prepare("UPDATE items SET title = ? WHERE id = ?");
 
 class Item {
-  constructor(public title: string) { }
+  constructor(
+    public title: string,
+    public id?: number
+  ) {}
 }
 
 class TodoList {
-  private items: Item[] = []
+  private items: Item[] = [];
 
   addItem(item: Item) {
-    this.items.push(item)
-    queryInsertItem.run(item.title)
+    const result = queryInsertItem.run(item.title);
+
+    item.id = Number(result.lastInsertRowid);
+
+    this.items.push(item);
   }
 
-  removeItem(index: number) {
-    if (index >= 0 && index < this.items.length) {
-  const removedItem = this.items[index];
-        if (removedItem){
-            this.items.splice(index,1);
-        }
-        queryDeleteItem.run(index)
-      }
-    }
-  updateItem(index: number, newTitle: string) {
-    if (index >= 0 && index < this.items.length) {
-            this.items[index].title = newTitle;
-        }
-        queryUpdateItem.run(newTitle, index)
+  removeItem(id: number) {
+    this.items = this.items.filter(item => item.id !== id);
+
+    queryDeleteItem.run(id);
   }
+
+  updateItem(id: number, newTitle: string) {
+    const item = this.items.find(item => item.id === id);
+
+    if (item) {
+      item.title = newTitle;
+      queryUpdateItem.run(newTitle, id);
+    }
+  }
+
   getItems() {
-    const items = querySelectItems.all()
-    return items
+    return querySelectItems.all();
   }
 }
 
-const lista = new TodoList()
-lista.addItem(new Item("ficar quieto"))
-lista.addItem(new Item("prestar atenção"))
-lista.addItem(new Item("aprender typescript"))
-lista.removeItem(1)
-lista.updateItem(2, "ficar quieto e prestar atenção")
-console.log(lista.getItems())
+const lista = new TodoList();
+
+lista.addItem(new Item("ficar quieto"));
+lista.addItem(new Item("prestar atenção"));
+lista.addItem(new Item("aprender typescript"));
+
+lista.removeItem(2);
+
+lista.updateItem(
+  3,
+  "ficar quieto e prestar atenção"
+);
+
+console.log(lista.getItems());
